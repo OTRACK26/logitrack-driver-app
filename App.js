@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { BarCodeScanner } from 'expo-barcode-scanner';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 
 const BACKEND_URL = 'https://logitrack-backend-6sv3.onrender.com';
 
@@ -10,21 +10,24 @@ export default function App() {
   const [receiverDni, setReceiverDni] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  const [hasPermission, setHasPermission] = useState(null);
+  const [permission, requestPermission] = useCameraPermissions();
   const [scanning, setScanning] = useState(false);
 
-  useEffect(() => {
-    const getBarCodeScannerPermissions = async () => {
-      const { status } = await BarCodeScanner.requestPermissionsAsync();
-      setHasPermission(status === 'granted');
-    };
-    getBarCodeScannerPermissions();
-  }, []);
-
-  const handleBarCodeScanned = ({ data }) => {
+  const handleBarcodeScanned = ({ data }) => {
     setScanning(false);
     setTrackingNumber(data.toUpperCase());
     Alert.alert('¡Código Escaneado!', `Tracking: ${data}`);
+  };
+
+  const startScan = async () => {
+    if (!permission?.granted) {
+      const res = await requestPermission();
+      if (!res.granted) {
+        Alert.alert('Permiso Denegado', 'Necesitas dar permiso a la cámara para escanear.');
+        return;
+      }
+    }
+    setScanning(true);
   };
 
   const handleStatusChange = async (statusToSet) => {
@@ -72,21 +75,11 @@ export default function App() {
   };
 
   if (scanning) {
-    if (hasPermission === false) {
-      return (
-        <View style={styles.centerContainer}>
-          <Text>No hay acceso a la cámara. Permita el uso de la cámara en su celular.</Text>
-          <TouchableOpacity style={styles.buttonCancel} onPress={() => setScanning(false)}>
-            <Text style={styles.buttonText}>Volver</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
     return (
       <View style={styles.container}>
-        <BarCodeScanner
-          onBarCodeScanned={handleBarCodeScanned}
+        <CameraView
+          onBarcodeScanned={handleBarcodeScanned}
+          barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
           style={StyleSheet.absoluteFillObject}
         />
         <View style={styles.overlay}>
@@ -115,7 +108,7 @@ export default function App() {
           autoCapitalize="characters"
         />
 
-        <TouchableOpacity style={styles.buttonScan} onPress={() => setScanning(true)}>
+        <TouchableOpacity style={styles.buttonScan} onPress={startScan}>
           <Text style={styles.buttonText}>📷 Escanear Código QR</Text>
         </TouchableOpacity>
 
@@ -147,7 +140,6 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f1f5f9' },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   header: { backgroundColor: '#0f172a', padding: 20, paddingTop: 50, alignItems: 'center' },
   headerTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
   card: { backgroundColor: '#fff', margin: 20, padding: 20, borderRadius: 10, elevation: 3 },
