@@ -1,17 +1,22 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 
-// URL de tu servidor backend en Render (Debes reemplazarla)
 const BACKEND_URL = 'https://logitrack-backend-6sv3.onrender.com';
 
 export default function App() {
-  const [trackingNumber, setTrackingNumber] = useState('TRK-999');
+  const [trackingNumber, setTrackingNumber] = useState('');
   const [receiverName, setReceiverName] = useState('');
   const [receiverDni, setReceiverDni] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleConfirmDelivery = async () => {
-    if (!receiverName || !receiverDni) {
+  const handleStatusChange = async (statusToSet) => {
+    if (!trackingNumber) {
+      Alert.alert('Error', 'Debe ingresar un número de tracking.');
+      return;
+    }
+
+    // Si es entrega final, exigimos DNI y Nombre
+    if (statusToSet === 'ENTREGADO' && (!receiverName || !receiverDni)) {
       Alert.alert('Error', 'Debe ingresar el Nombre y DNI de quien recibe.');
       return;
     }
@@ -21,29 +26,29 @@ export default function App() {
     try {
       const response = await fetch(`${BACKEND_URL}/api/events`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tracking_number: trackingNumber,
-          status: 'ENTREGADO',
-          receiver_name: receiverName,
-          receiver_dni: receiverDni
+          tracking_number: trackingNumber.toUpperCase(),
+          status: statusToSet,
+          receiver_name: receiverName || null,
+          receiver_dni: receiverDni || null
         }),
       });
 
       const data = await response.json();
 
       if (data.success) {
-        Alert.alert('¡Éxito!', `Paquete ${trackingNumber} marcado como entregado.`);
-        setReceiverName('');
-        setReceiverDni('');
+        Alert.alert('¡Éxito!', `Paquete marcado como ${statusToSet}`);
+        if (statusToSet === 'ENTREGADO') {
+          setReceiverName('');
+          setReceiverDni('');
+          setTrackingNumber('');
+        }
       } else {
-        Alert.alert('Error', data.error || 'No se pudo confirmar la entrega.');
+        Alert.alert('Error', data.error || 'No se pudo actualizar.');
       }
     } catch (error) {
-      Alert.alert('Error de conexión', 'Verifique su conexión a internet e intente nuevamente.');
-      console.error(error);
+      Alert.alert('Error', 'Verifique su conexión a internet.');
     } finally {
       setIsLoading(false);
     }
@@ -52,40 +57,39 @@ export default function App() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>LogiTrack Driver</Text>
+        <Text style={styles.headerTitle}>LogiTrack Chofer</Text>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.label}>Paquete a Entregar:</Text>
-        <Text style={styles.trackingNumber}>{trackingNumber}</Text>
-
-        <Text style={styles.label}>Nombre de quien recibe:</Text>
+        <Text style={styles.label}>Escanear o ingresar Tracking:</Text>
         <TextInput
-          style={styles.input}
-          placeholder="Ej: Juan Pérez"
-          value={receiverName}
-          onChangeText={setReceiverName}
-        />
-
-        <Text style={styles.label}>DNI de quien recibe:</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ej: 12345678"
-          value={receiverDni}
-          onChangeText={setReceiverDni}
-          keyboardType="numeric"
+          style={styles.inputTracking}
+          placeholder="Ej: TRK-1001"
+          value={trackingNumber}
+          onChangeText={setTrackingNumber}
+          autoCapitalize="characters"
         />
 
         <TouchableOpacity 
-          style={[styles.button, isLoading && styles.buttonDisabled]} 
-          onPress={handleConfirmDelivery}
+          style={[styles.buttonReparto, isLoading && styles.buttonDisabled]} 
+          onPress={() => handleStatusChange('EN_REPARTO')}
           disabled={isLoading}
         >
-          {isLoading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Confirmar Entrega</Text>
-          )}
+          <Text style={styles.buttonText}>🚚 Iniciar Reparto (Cargar camión)</Text>
+        </TouchableOpacity>
+
+        <View style={styles.divider} />
+
+        <Text style={styles.label}>Datos para Entrega Final:</Text>
+        <TextInput style={styles.input} placeholder="Nombre (Ej: Juan Pérez)" value={receiverName} onChangeText={setReceiverName} />
+        <TextInput style={styles.input} placeholder="DNI (Ej: 12345678)" value={receiverDni} onChangeText={setReceiverDni} keyboardType="numeric" />
+
+        <TouchableOpacity 
+          style={[styles.buttonEntrega, isLoading && styles.buttonDisabled]} 
+          onPress={() => handleStatusChange('ENTREGADO')}
+          disabled={isLoading}
+        >
+          {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>✅ Confirmar Entrega</Text>}
         </TouchableOpacity>
       </View>
     </View>
@@ -97,10 +101,12 @@ const styles = StyleSheet.create({
   header: { backgroundColor: '#0f172a', padding: 20, paddingTop: 50, alignItems: 'center' },
   headerTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
   card: { backgroundColor: '#fff', margin: 20, padding: 20, borderRadius: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-  label: { fontSize: 14, color: '#64748b', marginBottom: 5, marginTop: 15, fontWeight: 'bold' },
-  trackingNumber: { fontSize: 24, color: '#2563eb', fontWeight: 'bold', marginBottom: 10 },
-  input: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 8, padding: 12, fontSize: 16, backgroundColor: '#f8fafc' },
-  button: { backgroundColor: '#10b981', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 25 },
+  label: { fontSize: 14, color: '#64748b', marginBottom: 5, marginTop: 5, fontWeight: 'bold' },
+  inputTracking: { borderWidth: 2, borderColor: '#3b82f6', borderRadius: 8, padding: 12, fontSize: 18, backgroundColor: '#eff6ff', marginBottom: 15, fontWeight: 'bold', textTransform: 'uppercase' },
+  input: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 8, padding: 12, fontSize: 16, backgroundColor: '#f8fafc', marginBottom: 10 },
+  buttonReparto: { backgroundColor: '#eab308', padding: 15, borderRadius: 8, alignItems: 'center' },
+  buttonEntrega: { backgroundColor: '#10b981', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 5 },
   buttonDisabled: { backgroundColor: '#94a3b8' },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  divider: { height: 1, backgroundColor: '#e2e8f0', marginVertical: 20 }
 });
