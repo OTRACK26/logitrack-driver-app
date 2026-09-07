@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { CameraView, Camera } from 'expo-camera';
+import { BarCodeScanner } from 'expo-barcode-scanner';
 
 const BACKEND_URL = 'https://logitrack-backend-6sv3.onrender.com';
 
@@ -10,19 +10,18 @@ export default function App() {
   const [receiverDni, setReceiverDni] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  // Estados para la cámara
   const [hasPermission, setHasPermission] = useState(null);
   const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
-    const getCameraPermissions = async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
+    const getBarCodeScannerPermissions = async () => {
+      const { status } = await BarCodeScanner.requestPermissionsAsync();
       setHasPermission(status === 'granted');
     };
-    getCameraPermissions();
+    getBarCodeScannerPermissions();
   }, []);
 
-  const handleBarcodeScanned = ({ data }) => {
+  const handleBarCodeScanned = ({ data }) => {
     setScanning(false);
     setTrackingNumber(data.toUpperCase());
     Alert.alert('¡Código Escaneado!', `Tracking: ${data}`);
@@ -76,7 +75,7 @@ export default function App() {
     if (hasPermission === false) {
       return (
         <View style={styles.centerContainer}>
-          <Text>No hay acceso a la cámara. Habilite los permisos en su dispositivo.</Text>
+          <Text>No hay acceso a la cámara. Permita el uso de la cámara en su celular.</Text>
           <TouchableOpacity style={styles.buttonCancel} onPress={() => setScanning(false)}>
             <Text style={styles.buttonText}>Volver</Text>
           </TouchableOpacity>
@@ -86,9 +85,8 @@ export default function App() {
 
     return (
       <View style={styles.container}>
-        <CameraView
-          onBarcodeScanned={handleBarcodeScanned}
-          barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+        <BarCodeScanner
+          onBarCodeScanned={handleBarCodeScanned}
           style={StyleSheet.absoluteFillObject}
         />
         <View style={styles.overlay}>
